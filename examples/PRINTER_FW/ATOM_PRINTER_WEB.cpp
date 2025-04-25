@@ -3,6 +3,7 @@
 #include "ATOM_PRINTER_CONFIG.h"
 #include "ATOM_PRINTER_WIFI.h"
 #include "ATOM_PRINTER_HTML.h"
+#include "ATOM_IMAGE_HTML.h"
 #include "ATOM_PRINTER_MQTT.h"
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -65,6 +66,11 @@ String urlDecode(String input)
 void handleRoot()
 {
     webServer.send(200, "text/html", (char*)printer_html);
+}
+
+void handleImageRoot()
+{
+    webServer.send(200, "text/html", (char*)image_html);
 }
 
 void handleWiFiConfig()
@@ -215,6 +221,16 @@ void handleMQTTConfig()
     }
 }
 
+/*
+ * BMP Printing Process:
+ * 1. First, send a POST request to /bmp_size with JSON containing image dimensions:
+ *    {
+ *      "bmp_width": <width_in_pixels>,
+ *      "bmp_height": <height_in_pixels>
+ *    }
+ * 2. After successful size setup, send the BMP file data to /bmp endpoint
+ *    using multipart/form-data POST request
+ */
 void handleBMPSize()
 {
     Serial.println("Handling BMP size request");
@@ -247,6 +263,16 @@ void handleBMPSize()
     webServer.send(200, "text/plain", "OK");
 }
 
+/*
+ * Handles the actual BMP file upload and printing process.
+ * The function processes the file in chunks to handle memory constraints:
+ * 1. UPLOAD_FILE_START: Initializes the upload process
+ * 2. UPLOAD_FILE_WRITE: Receives and stores chunks of BMP data
+ * 3. UPLOAD_FILE_END: Prints the complete BMP image using stored dimensions
+ * 
+ * Note: Make sure to call /bmp_size first to set image dimensions before uploading BMP data
+ * Maximum file size is limited by BMP_BUFFER_LIMIT
+ */
 void handleBMP()
 {
     HTTPUpload& upload = webServer.upload();
@@ -341,6 +367,7 @@ void webServerInit()
     // 设置路由处理器
     webServer.onNotFound(handleRoot);
     webServer.on("/", HTTP_GET, handleRoot);
+    webServer.on("/image", HTTP_GET, handleImageRoot);
     webServer.on("/print", HTTP_GET, handlePrint);
     webServer.on("/wifi_config", HTTP_POST, handleWiFiConfig);
     webServer.on("/mqtt_config", HTTP_GET, handleMQTTConfig);
